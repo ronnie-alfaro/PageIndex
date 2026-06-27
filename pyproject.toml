@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pageindex"
+version = "0.1.0"
+description = "Vectorless, reasoning-based document indexing for PDF and Markdown documents."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = [
+    "litellm==1.83.7",
+    "pymupdf==1.26.4",
+    "PyPDF2==3.0.1",
+    "python-dotenv==1.0.1",
+    "pyyaml==6.0.2",
+]
+
+[project.optional-dependencies]
+agents = [
+    "openai-agents",
+    "requests",
+]
+
+[project.scripts]
+pageindex = "pageindex.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["pageindex*"]

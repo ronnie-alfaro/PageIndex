@@ -152,7 +152,7 @@ You can follow these steps to generate a PageIndex tree from a PDF document.
 ### 1. Install dependencies
 
 ```bash
-pip3 install --upgrade -r requirements.txt
+uv sync
 ```
 
 ### 2. Set your LLM API key
@@ -166,7 +166,7 @@ OPENAI_API_KEY=your_openai_key_here
 ### 3. Generate PageIndex structure for your PDF
 
 ```bash
-python3 run_pageindex.py --pdf_path /path/to/your/document.pdf
+uv run pageindex --pdf_path /path/to/your/document.pdf
 ```
 
 <details>
@@ -191,7 +191,7 @@ You can customize the processing with additional optional arguments:
 We also provide markdown support for PageIndex. You can use the `--md_path` flag to generate a tree structure for a markdown file.
 
 ```bash
-python3 run_pageindex.py --md_path /path/to/your/document.md
+uv run pageindex --md_path /path/to/your/document.md
 ```
 
 > Note: in this mode, we use "#" to determine node headings and their levels. For example, "##" is level 2, "###" is level 3, etc. Make sure your markdown file is formatted correctly. If your Markdown file was converted from a PDF or HTML, we don't recommend using this mode, since most existing conversion tools cannot preserve the original hierarchy. Instead, use our [PageIndex OCR](https://pageindex.ai/blog/ocr), which is designed to preserve it, to convert the PDF to a markdown file and then use this mode.
