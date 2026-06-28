@@ -7,7 +7,7 @@ import uuid
 from .epub import epub_to_tree
 from .page_index_md import md_to_tree
 from .proxy_llm import llm_completion
-from .pir import get_text, read_pir, render_compact_tree
+from .pir import get_subtree_text, read_pir, render_compact_tree
 from .retrieve import get_document, get_document_structure, get_page_content
 
 
@@ -225,9 +225,9 @@ def ask_pir(pir_path, question, model=None, verbose=False):
 
     excerpts = []
     for node_id in node_ids:
-        text = get_text(compiled, node_id)
+        text = get_subtree_text(compiled, node_id)
         if text:
-            excerpts.append(f"[node {node_id}]\n{text}")
+            excerpts.append(text)
 
     if verbose:
         print(f"[agent] selected node_ids: {', '.join(node_ids)}")

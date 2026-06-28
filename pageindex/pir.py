@@ -137,6 +137,34 @@ def get_text(compiled, node_id):
     return compiled["texts"][node["text_index"]]
 
 
+def get_subtree_text(compiled, node_id, max_chars=24000):
+    root = get_node(compiled, node_id)
+    if not root:
+        return ""
+
+    root_depth = root["depth"]
+    start = root["index"]
+    parts = []
+    total = 0
+
+    for node in compiled["nodes"][start:]:
+        if node["index"] != start and node["depth"] <= root_depth:
+            break
+        text = get_text(compiled, node["node_id"])
+        if not text:
+            continue
+        chunk = f"[node {node['node_id']}] {node['title']}\n{text}"
+        remaining = max_chars - total
+        if remaining <= 0:
+            break
+        if len(chunk) > remaining:
+            chunk = chunk[:remaining]
+        parts.append(chunk)
+        total += len(chunk)
+
+    return "\n\n".join(parts)
+
+
 def render_compact_tree(compiled, max_depth=2):
     lines = []
     for node in compiled["nodes"]:
