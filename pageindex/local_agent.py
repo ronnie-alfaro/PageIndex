@@ -206,22 +206,24 @@ def ask_pir(pir_path, question, model=None, verbose=False):
     metadata = json.dumps(compiled.get("document", {}), ensure_ascii=False)
     tree = render_compact_tree(compiled, max_depth=2)
     lexical_node_ids = search_nodes(compiled, question, limit=4)
+    node_ids = lexical_node_ids
 
-    selection_raw = llm_completion(
-        model,
-        PIR_SELECT_PROMPT.format(metadata=metadata, tree=tree, question=question),
-    )
-    if not selection_raw and not lexical_node_ids:
-        raise RuntimeError(
-            "Local LLM did not return a response. Start llama.cpp server at "
-            "http://127.0.0.1:8080/v1 or pass --model ollama/<model> / --model litellm/<model>."
+    if not node_ids:
+        selection_raw = llm_completion(
+            model,
+            PIR_SELECT_PROMPT.format(metadata=metadata, tree=tree, question=question),
         )
+        if not selection_raw:
+            raise RuntimeError(
+                "Local LLM did not return a response. Start llama.cpp server at "
+                "http://127.0.0.1:8080/v1 or pass --model ollama/<model> / --model litellm/<model>."
+            )
+        selection = _extract_json(selection_raw)
+        node_ids = selection.get("node_ids") or selection.get("nodes") or []
+        if isinstance(node_ids, str):
+            node_ids = [part.strip() for part in node_ids.split(",") if part.strip()]
 
-    selection = _extract_json(selection_raw)
-    node_ids = selection.get("node_ids") or selection.get("nodes") or []
-    if isinstance(node_ids, str):
-        node_ids = [part.strip() for part in node_ids.split(",") if part.strip()]
-    node_ids = list(dict.fromkeys([*node_ids, *lexical_node_ids]))
+    node_ids = list(dict.fromkeys(node_ids))
     if not node_ids and compiled.get("nodes"):
         node_ids = [compiled["nodes"][0]["node_id"]]
 
