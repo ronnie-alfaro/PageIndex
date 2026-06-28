@@ -65,7 +65,8 @@ def _messages(prompt, chat_history=None):
     return messages
 
 
-def _post_json(url, payload, timeout=120):
+def _post_json(url, payload, timeout=None):
+    timeout = timeout or float(os.getenv("PAGEINDEX_LLM_TIMEOUT", "30"))
     data = json.dumps(payload).encode("utf-8")
     request = Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
     try:

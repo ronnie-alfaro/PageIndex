@@ -7,6 +7,7 @@ import uuid
 from .epub import epub_to_tree
 from .page_index_md import md_to_tree
 from .proxy_llm import llm_completion
+from .pir import get_text, read_pir, render_compact_tree
 from .retrieve import get_document, get_document_structure, get_page_content
 
 
@@ -40,6 +41,27 @@ Question:
 
 Document excerpts:
 {content}
+"""
+
+
+PIR_SELECT_PROMPT = """You are a document retrieval agent.
+You will receive document metadata, a compact PageIndex tree, and a user question.
+Choose the smallest set of relevant node IDs to inspect.
+
+Return only JSON:
+{{
+  "thinking": "short reason",
+  "node_ids": ["0001", "0002"]
+}}
+
+Document metadata:
+{metadata}
+
+Compact tree:
+{tree}
+
+Question:
+{question}
 """
 
 
@@ -171,6 +193,48 @@ def ask_document(file_path, question, model=None, verbose=False):
     answer = llm_completion(
         model,
         ANSWER_PROMPT.format(question=question, content=content),
+    )
+    if not answer:
+        raise RuntimeError(
+            "Local LLM did not return an answer. Check that the selected model server is running."
+        )
+    return answer
+
+
+def ask_pir(pir_path, question, model=None, verbose=False):
+    compiled = read_pir(pir_path)
+    metadata = json.dumps(compiled.get("document", {}), ensure_ascii=False)
+    tree = render_compact_tree(compiled, max_depth=2)
+
+    selection_raw = llm_completion(
+        model,
+        PIR_SELECT_PROMPT.format(metadata=metadata, tree=tree, question=question),
+    )
+    if not selection_raw:
+        raise RuntimeError(
+            "Local LLM did not return a response. Start llama.cpp server at "
+            "http://127.0.0.1:8080/v1 or pass --model ollama/<model> / --model litellm/<model>."
+        )
+
+    selection = _extract_json(selection_raw)
+    node_ids = selection.get("node_ids") or selection.get("nodes") or []
+    if isinstance(node_ids, str):
+        node_ids = [part.strip() for part in node_ids.split(",") if part.strip()]
+    if not node_ids and compiled.get("nodes"):
+        node_ids = [compiled["nodes"][0]["node_id"]]
+
+    excerpts = []
+    for node_id in node_ids:
+        text = get_text(compiled, node_id)
+        if text:
+            excerpts.append(f"[node {node_id}]\n{text}")
+
+    if verbose:
+        print(f"[agent] selected node_ids: {', '.join(node_ids)}")
+
+    answer = llm_completion(
+        model,
+        ANSWER_PROMPT.format(question=question, content="\n\n".join(excerpts)),
     )
     if not answer:
         raise RuntimeError(

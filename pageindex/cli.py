@@ -14,6 +14,7 @@ def _build_ask_parser():
     parser.add_argument("--pdf_path", type=str, help="Path to the PDF file")
     parser.add_argument("--md_path", type=str, help="Path to the Markdown file")
     parser.add_argument("--epub_path", type=str, help="Path to the EPUB file")
+    parser.add_argument("--pir_path", type=str, help="Path to the PIR compiled tree file")
     parser.add_argument(
         "--model",
         type=str,
@@ -84,11 +85,11 @@ def _build_parser():
 
 
 def _selected_path(args):
-    paths = [path for path in (args.pdf_path, args.md_path, args.epub_path) if path]
+    paths = [path for path in (args.pdf_path, args.md_path, args.epub_path, getattr(args, "pir_path", None)) if path]
     if not paths:
-        raise ValueError("One of --pdf_path, --md_path, or --epub_path must be specified")
+        raise ValueError("One of --pdf_path, --md_path, --epub_path, or --pir_path must be specified")
     if len(paths) > 1:
-        raise ValueError("Only one of --pdf_path, --md_path, or --epub_path can be specified")
+        raise ValueError("Only one of --pdf_path, --md_path, --epub_path, or --pir_path can be specified")
     return paths[0]
 
 
@@ -215,13 +216,16 @@ def _process_epub(args):
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "ask":
-        from pageindex.local_agent import ask_document
+        from pageindex.local_agent import ask_document, ask_pir
 
         parser = _build_ask_parser()
         args = parser.parse_args(argv[1:])
         file_path = _selected_path(args)
         try:
-            answer = ask_document(file_path, args.question, model=args.model, verbose=args.verbose)
+            if args.pir_path:
+                answer = ask_pir(file_path, args.question, model=args.model, verbose=args.verbose)
+            else:
+                answer = ask_document(file_path, args.question, model=args.model, verbose=args.verbose)
         except RuntimeError as e:
             parser.exit(1, f"error: {e}\n")
         print(answer)

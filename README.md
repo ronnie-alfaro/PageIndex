@@ -239,6 +239,12 @@ You can ask questions with the local-first agent. By default it uses llama.cpp a
 uv run --no-editable pageindex ask --md_path /path/to/your/document.md "What is this document about?"
 ```
 
+If you already compiled a `.pir`, ask against it directly without reprocessing the source document:
+
+```bash
+uv run --no-editable pageindex ask --pir_path results/book.pir "What is this document about?"
+```
+
 Local model routing:
 
 ```bash
