@@ -3,7 +3,6 @@ import os
 import re
 import textwrap
 from datetime import datetime
-import time
 import json
 import copy
 import asyncio
@@ -11,85 +10,8 @@ from io import BytesIO
 import yaml
 from pathlib import Path
 from types import SimpleNamespace as config
+from .proxy_llm import count_tokens, llm_acompletion, llm_completion
 
-_LITELLM = None
-
-
-def _load_litellm():
-    global _LITELLM
-    if _LITELLM is None:
-        from dotenv import load_dotenv
-        import litellm
-
-        load_dotenv()
-        # Backward compatibility: support CHATGPT_API_KEY as alias for OPENAI_API_KEY
-        if not os.getenv("OPENAI_API_KEY") and os.getenv("CHATGPT_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = os.getenv("CHATGPT_API_KEY")
-        litellm.drop_params = True
-        _LITELLM = litellm
-    return _LITELLM
-
-def count_tokens(text, model=None):
-    if not text:
-        return 0
-    return _load_litellm().token_counter(model=model, text=text)
-
-
-def llm_completion(model, prompt, chat_history=None, return_finish_reason=False):
-    litellm = _load_litellm()
-    if model:
-        model = model.removeprefix("litellm/")
-    max_retries = 10
-    messages = list(chat_history) + [{"role": "user", "content": prompt}] if chat_history else [{"role": "user", "content": prompt}]
-    for i in range(max_retries):
-        try:
-            response = litellm.completion(
-                model=model,
-                messages=messages,
-                temperature=0,
-            )
-            content = response.choices[0].message.content
-            if return_finish_reason:
-                finish_reason = "max_output_reached" if response.choices[0].finish_reason == "length" else "finished"
-                return content, finish_reason
-            return content
-        except Exception as e:
-            print('************* Retrying *************')
-            logging.error(f"Error: {e}")
-            if i < max_retries - 1:
-                time.sleep(1)
-            else:
-                logging.error('Max retries reached for prompt: ' + prompt)
-                if return_finish_reason:
-                    return "", "error"
-                return ""
-
-
-
-async def llm_acompletion(model, prompt):
-    litellm = _load_litellm()
-    if model:
-        model = model.removeprefix("litellm/")
-    max_retries = 10
-    messages = [{"role": "user", "content": prompt}]
-    for i in range(max_retries):
-        try:
-            response = await litellm.acompletion(
-                model=model,
-                messages=messages,
-                temperature=0,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print('************* Retrying *************')
-            logging.error(f"Error: {e}")
-            if i < max_retries - 1:
-                await asyncio.sleep(1)
-            else:
-                logging.error('Max retries reached for prompt: ' + prompt)
-                return ""
-            
-            
 def get_json_content(response):
     start_idx = response.find("```json")
     if start_idx != -1:

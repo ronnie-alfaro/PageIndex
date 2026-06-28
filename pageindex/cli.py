@@ -2,9 +2,26 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 
 from pageindex.page_index_md import md_to_tree
 from pageindex.utils import ConfigLoader
+
+
+def _build_ask_parser():
+    parser = argparse.ArgumentParser(description="Ask a local agent questions about a document")
+    parser.add_argument("question", help="Question to answer from the document")
+    parser.add_argument("--pdf_path", type=str, help="Path to the PDF file")
+    parser.add_argument("--md_path", type=str, help="Path to the Markdown file")
+    parser.add_argument("--epub_path", type=str, help="Path to the EPUB file")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Model to use. Defaults to local/default via llama.cpp at 127.0.0.1:8080/v1",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Print agent retrieval decisions")
+    return parser
 
 
 def _build_parser():
@@ -60,12 +77,17 @@ def _build_parser():
     return parser
 
 
-def _validate_args(args):
-    selected = [path for path in (args.pdf_path, args.md_path, args.epub_path) if path]
-    if not selected:
+def _selected_path(args):
+    paths = [path for path in (args.pdf_path, args.md_path, args.epub_path) if path]
+    if not paths:
         raise ValueError("One of --pdf_path, --md_path, or --epub_path must be specified")
-    if len(selected) > 1:
+    if len(paths) > 1:
         raise ValueError("Only one of --pdf_path, --md_path, or --epub_path can be specified")
+    return paths[0]
+
+
+def _validate_args(args):
+    _selected_path(args)
 
 
 def _write_result(result, source_path):
@@ -178,6 +200,20 @@ def _process_epub(args):
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "ask":
+        from pageindex.local_agent import ask_document
+
+        parser = _build_ask_parser()
+        args = parser.parse_args(argv[1:])
+        file_path = _selected_path(args)
+        try:
+            answer = ask_document(file_path, args.question, model=args.model, verbose=args.verbose)
+        except RuntimeError as e:
+            parser.exit(1, f"error: {e}\n")
+        print(answer)
+        return
+
     parser = _build_parser()
     args = parser.parse_args(argv)
     _validate_args(args)

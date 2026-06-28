@@ -157,7 +157,9 @@ uv sync
 
 ### 2. Set your LLM API key
 
-Create a `.env` file in the root directory with your LLM API key. Multi-LLM is supported via [LiteLLM](https://docs.litellm.ai/docs/providers):
+For local usage, PageIndex defaults to a llama.cpp OpenAI-compatible server at `http://127.0.0.1:8080/v1`, so no API key is required if that server is running.
+
+For hosted providers, create a `.env` file in the root directory with your LLM API key. Multi-LLM is supported via [LiteLLM](https://docs.litellm.ai/docs/providers) by using a `litellm/` model prefix:
 
 ```bash
 OPENAI_API_KEY=your_openai_key_here
@@ -208,6 +210,27 @@ uv run --no-editable pageindex --epub_path /path/to/your/book.epub
 
 Markdown and EPUB ingestion use lazy imports, so PDF parsing libraries are only loaded when the PDF path is used.
 </details>
+
+### Local agentic QA
+
+You can ask questions with the local-first agent. By default it uses llama.cpp at `127.0.0.1:8080`.
+
+```bash
+uv run --no-editable pageindex ask --md_path /path/to/your/document.md "What is this document about?"
+```
+
+Local model routing:
+
+```bash
+# llama.cpp, default local backend
+uv run --no-editable pageindex ask --md_path document.md --model local/default "Question?"
+
+# Ollama
+uv run --no-editable pageindex ask --md_path document.md --model ollama/llama3.1:8b "Question?"
+
+# LiteLLM / hosted provider
+uv run --no-editable pageindex ask --md_path document.md --model litellm/gpt-4o-mini "Question?"
+```
 
 ## 🚀 Agentic Vectorless RAG: An Example
 
