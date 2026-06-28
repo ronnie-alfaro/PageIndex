@@ -11,6 +11,7 @@ DEFAULT_LLAMA_CPP_BASE_URL = "http://127.0.0.1:8080/v1"
 DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 
 _LITELLM = None
+_LAST_ERROR = None
 
 
 def _load_litellm():
@@ -66,7 +67,7 @@ def _messages(prompt, chat_history=None):
 
 
 def _post_json(url, payload, timeout=None):
-    timeout = timeout or float(os.getenv("PAGEINDEX_LLM_TIMEOUT", "30"))
+    timeout = timeout or float(os.getenv("PAGEINDEX_LLM_TIMEOUT", "120"))
     data = json.dumps(payload).encode("utf-8")
     request = Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
     try:
@@ -123,6 +124,8 @@ def _litellm_completion(model, prompt, chat_history=None):
 
 
 def llm_completion(model, prompt, chat_history=None, return_finish_reason=False):
+    global _LAST_ERROR
+    _LAST_ERROR = None
     max_retries = 3 if _provider_for(model) in {"llamacpp", "ollama"} else 10
     for i in range(max_retries):
         try:
@@ -135,6 +138,7 @@ def llm_completion(model, prompt, chat_history=None, return_finish_reason=False)
                 content, finish_reason = _litellm_completion(model, prompt, chat_history)
             return (content, finish_reason) if return_finish_reason else content
         except Exception as e:
+            _LAST_ERROR = str(e)
             logging.debug(f"LLM error: {e}")
             if i < max_retries - 1:
                 time.sleep(1)
@@ -158,3 +162,7 @@ def count_tokens(text, model=None):
         return _load_litellm().token_counter(model=_provider_model(model), text=text)
     except Exception:
         return max(1, len(text) // 4)
+
+
+def last_error():
+    return _LAST_ERROR

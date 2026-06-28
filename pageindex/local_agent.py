@@ -6,7 +6,7 @@ import uuid
 
 from .epub import epub_to_tree
 from .page_index_md import md_to_tree
-from .proxy_llm import llm_completion
+from .proxy_llm import last_error, llm_completion
 from .pir import get_subtree_text, read_pir, render_compact_tree, search_nodes
 from .retrieve import get_document, get_document_structure, get_page_content
 
@@ -35,6 +35,7 @@ Question:
 ANSWER_PROMPT = """Answer the question using only the provided document excerpts.
 If the excerpts are insufficient, say what is missing.
 Mention relevant line/page references when useful.
+Be concise and focus on facts that directly answer the question.
 
 Question:
 {question}
@@ -195,10 +196,44 @@ def ask_document(file_path, question, model=None, verbose=False):
         ANSWER_PROMPT.format(question=question, content=content),
     )
     if not answer:
+        detail = f" Last error: {last_error()}" if last_error() else ""
         raise RuntimeError(
             "Local LLM did not return an answer. Check that the selected model server is running."
+            + detail
         )
     return answer
+
+
+def _without_ancestor_duplicates(compiled, node_ids):
+    node_by_id = {node["node_id"]: node for node in compiled["nodes"]}
+    selected = [node_id for node_id in node_ids if node_id in node_by_id]
+    selected_set = set(selected)
+    redundant = set()
+
+    for node_id in selected:
+        parent = node_by_id[node_id].get("parent")
+        while parent is not None:
+            parent_id = compiled["nodes"][parent]["node_id"]
+            if parent_id in selected_set:
+                redundant.add(parent_id)
+            parent = compiled["nodes"][parent].get("parent")
+
+    return [node_id for node_id in selected if node_id not in redundant]
+
+
+def _build_pir_excerpts(compiled, node_ids, per_node_chars=6000, total_chars=18000):
+    excerpts = []
+    total = 0
+    for node_id in node_ids:
+        remaining = total_chars - total
+        if remaining <= 0:
+            break
+        text = get_subtree_text(compiled, node_id, max_chars=min(per_node_chars, remaining))
+        if not text:
+            continue
+        excerpts.append(text)
+        total += len(text)
+    return excerpts, total
 
 
 def ask_pir(pir_path, question, model=None, verbose=False):
@@ -223,15 +258,11 @@ def ask_pir(pir_path, question, model=None, verbose=False):
         if isinstance(node_ids, str):
             node_ids = [part.strip() for part in node_ids.split(",") if part.strip()]
 
-    node_ids = list(dict.fromkeys(node_ids))
+    node_ids = _without_ancestor_duplicates(compiled, list(dict.fromkeys(node_ids)))
     if not node_ids and compiled.get("nodes"):
         node_ids = [compiled["nodes"][0]["node_id"]]
 
-    excerpts = []
-    for node_id in node_ids:
-        text = get_subtree_text(compiled, node_id)
-        if text:
-            excerpts.append(text)
+    excerpts, excerpt_chars = _build_pir_excerpts(compiled, node_ids)
     if not excerpts:
         raise RuntimeError("PIR retrieval did not find text for the selected nodes.")
 
@@ -239,13 +270,16 @@ def ask_pir(pir_path, question, model=None, verbose=False):
         print(f"[agent] selected node_ids: {', '.join(node_ids)}")
         if lexical_node_ids:
             print(f"[agent] lexical node_ids: {', '.join(lexical_node_ids)}")
+        print(f"[agent] excerpt chars: {excerpt_chars}")
 
     answer = llm_completion(
         model,
         ANSWER_PROMPT.format(question=question, content="\n\n".join(excerpts)),
     )
     if not answer:
+        detail = f" Last error: {last_error()}" if last_error() else ""
         raise RuntimeError(
             "Local LLM did not return an answer. Check that the selected model server is running."
+            + detail
         )
     return answer
