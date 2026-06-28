@@ -11,6 +11,7 @@ def _build_parser():
     parser = argparse.ArgumentParser(description="Process PDF or Markdown document and generate structure")
     parser.add_argument("--pdf_path", type=str, help="Path to the PDF file")
     parser.add_argument("--md_path", type=str, help="Path to the Markdown file")
+    parser.add_argument("--epub_path", type=str, help="Path to the EPUB file")
 
     parser.add_argument("--model", type=str, default=None, help="Model to use (overrides config.yaml)")
 
@@ -60,10 +61,11 @@ def _build_parser():
 
 
 def _validate_args(args):
-    if not args.pdf_path and not args.md_path:
-        raise ValueError("Either --pdf_path or --md_path must be specified")
-    if args.pdf_path and args.md_path:
-        raise ValueError("Only one of --pdf_path or --md_path can be specified")
+    selected = [path for path in (args.pdf_path, args.md_path, args.epub_path) if path]
+    if not selected:
+        raise ValueError("One of --pdf_path, --md_path, or --epub_path must be specified")
+    if len(selected) > 1:
+        raise ValueError("Only one of --pdf_path, --md_path, or --epub_path can be specified")
 
 
 def _write_result(result, source_path):
@@ -138,6 +140,43 @@ def _process_markdown(args):
     _write_result(result, args.md_path)
 
 
+def _process_epub(args):
+    if not args.epub_path.lower().endswith(".epub"):
+        raise ValueError("EPUB file must have .epub extension")
+    if not os.path.isfile(args.epub_path):
+        raise ValueError(f"EPUB file not found: {args.epub_path}")
+
+    from pageindex.epub import epub_to_tree
+
+    print("Processing EPUB file...")
+
+    user_opt = {
+        "model": args.model,
+        "if_add_node_summary": args.if_add_node_summary,
+        "if_add_doc_description": args.if_add_doc_description,
+        "if_add_node_text": args.if_add_node_text,
+        "if_add_node_id": args.if_add_node_id,
+    }
+    opt = ConfigLoader().load({k: v for k, v in user_opt.items() if v is not None})
+
+    result = asyncio.run(
+        epub_to_tree(
+            epub_path=args.epub_path,
+            if_thinning=args.if_thinning.lower() == "yes",
+            min_token_threshold=args.thinning_threshold,
+            if_add_node_summary=opt.if_add_node_summary,
+            summary_token_threshold=args.summary_token_threshold,
+            model=opt.model,
+            if_add_doc_description=opt.if_add_doc_description,
+            if_add_node_text=opt.if_add_node_text,
+            if_add_node_id=opt.if_add_node_id,
+        )
+    )
+
+    print("Parsing done, saving to file...")
+    _write_result(result, args.epub_path)
+
+
 def main(argv=None):
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -145,8 +184,10 @@ def main(argv=None):
 
     if args.pdf_path:
         _process_pdf(args)
-    else:
+    elif args.md_path:
         _process_markdown(args)
+    else:
+        _process_epub(args)
 
 
 if __name__ == "__main__":

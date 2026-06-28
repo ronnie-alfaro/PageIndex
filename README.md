@@ -166,7 +166,7 @@ OPENAI_API_KEY=your_openai_key_here
 ### 3. Generate PageIndex structure for your PDF
 
 ```bash
-uv run pageindex --pdf_path /path/to/your/document.pdf
+uv run --no-editable pageindex --pdf_path /path/to/your/document.pdf
 ```
 
 <details>
@@ -191,10 +191,22 @@ You can customize the processing with additional optional arguments:
 We also provide markdown support for PageIndex. You can use the `--md_path` flag to generate a tree structure for a markdown file.
 
 ```bash
-uv run pageindex --md_path /path/to/your/document.md
+uv run --no-editable pageindex --md_path /path/to/your/document.md
 ```
 
 > Note: in this mode, we use "#" to determine node headings and their levels. For example, "##" is level 2, "###" is level 3, etc. Make sure your markdown file is formatted correctly. If your Markdown file was converted from a PDF or HTML, we don't recommend using this mode, since most existing conversion tools cannot preserve the original hierarchy. Instead, use our [PageIndex OCR](https://pageindex.ai/blog/ocr), which is designed to preserve it, to convert the PDF to a markdown file and then use this mode.
+</details>
+
+<details>
+<summary>EPUB support</summary>
+<br>
+EPUB files are ingested by converting their reading-order HTML content to Markdown and then using the same Markdown tree builder.
+
+```bash
+uv run --no-editable pageindex --epub_path /path/to/your/book.epub
+```
+
+Markdown and EPUB ingestion use lazy imports, so PDF parsing libraries are only loaded when the PDF path is used.
 </details>
 
 ## 🚀 Agentic Vectorless RAG: An Example

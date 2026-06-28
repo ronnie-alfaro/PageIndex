@@ -1,35 +1,42 @@
-import litellm
 import logging
 import os
+import re
 import textwrap
 from datetime import datetime
 import time
 import json
-import PyPDF2
 import copy
 import asyncio
-import pymupdf
 from io import BytesIO
-from dotenv import load_dotenv
-load_dotenv()
-import logging
 import yaml
 from pathlib import Path
 from types import SimpleNamespace as config
 
-# Backward compatibility: support CHATGPT_API_KEY as alias for OPENAI_API_KEY
-if not os.getenv("OPENAI_API_KEY") and os.getenv("CHATGPT_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.getenv("CHATGPT_API_KEY")
+_LITELLM = None
 
-litellm.drop_params = True
+
+def _load_litellm():
+    global _LITELLM
+    if _LITELLM is None:
+        from dotenv import load_dotenv
+        import litellm
+
+        load_dotenv()
+        # Backward compatibility: support CHATGPT_API_KEY as alias for OPENAI_API_KEY
+        if not os.getenv("OPENAI_API_KEY") and os.getenv("CHATGPT_API_KEY"):
+            os.environ["OPENAI_API_KEY"] = os.getenv("CHATGPT_API_KEY")
+        litellm.drop_params = True
+        _LITELLM = litellm
+    return _LITELLM
 
 def count_tokens(text, model=None):
     if not text:
         return 0
-    return litellm.token_counter(model=model, text=text)
+    return _load_litellm().token_counter(model=model, text=text)
 
 
 def llm_completion(model, prompt, chat_history=None, return_finish_reason=False):
+    litellm = _load_litellm()
     if model:
         model = model.removeprefix("litellm/")
     max_retries = 10
@@ -60,6 +67,7 @@ def llm_completion(model, prompt, chat_history=None, return_finish_reason=False)
 
 
 async def llm_acompletion(model, prompt):
+    litellm = _load_litellm()
     if model:
         model = model.removeprefix("litellm/")
     max_retries = 10
@@ -219,6 +227,8 @@ def get_last_node(structure):
 
 
 def extract_text_from_pdf(pdf_path):
+    import PyPDF2
+
     pdf_reader = PyPDF2.PdfReader(pdf_path)
     ###return text not list 
     text=""
@@ -228,12 +238,16 @@ def extract_text_from_pdf(pdf_path):
     return text
 
 def get_pdf_title(pdf_path):
+    import PyPDF2
+
     pdf_reader = PyPDF2.PdfReader(pdf_path)
     meta = pdf_reader.metadata
     title = meta.title if meta and meta.title else 'Untitled'
     return title
 
 def get_text_of_pages(pdf_path, start_page, end_page, tag=True):
+    import PyPDF2
+
     pdf_reader = PyPDF2.PdfReader(pdf_path)
     text = ""
     for page_num in range(start_page-1, end_page):
@@ -273,6 +287,8 @@ def get_pdf_name(pdf_path):
     if isinstance(pdf_path, str):
         pdf_name = os.path.basename(pdf_path)
     elif isinstance(pdf_path, BytesIO):
+        import PyPDF2
+
         pdf_reader = PyPDF2.PdfReader(pdf_path)
         meta = pdf_reader.metadata
         pdf_name = meta.title if meta and meta.title else 'Untitled'
@@ -385,7 +401,10 @@ def add_preface_if_needed(data):
 
 
 def get_page_tokens(pdf_path, model=None, pdf_parser="PyPDF2"):
+    litellm = _load_litellm()
     if pdf_parser == "PyPDF2":
+        import PyPDF2
+
         pdf_reader = PyPDF2.PdfReader(pdf_path)
         page_list = []
         for page_num in range(len(pdf_reader.pages)):
@@ -395,6 +414,8 @@ def get_page_tokens(pdf_path, model=None, pdf_parser="PyPDF2"):
             page_list.append((page_text, token_length))
         return page_list
     elif pdf_parser == "PyMuPDF":
+        import pymupdf
+
         if isinstance(pdf_path, BytesIO):
             pdf_stream = pdf_path
             doc = pymupdf.open(stream=pdf_stream, filetype="pdf")
@@ -424,6 +445,8 @@ def get_text_of_pdf_pages_with_labels(pdf_pages, start_page, end_page):
     return text
 
 def get_number_of_pages(pdf_path):
+    import PyPDF2
+
     pdf_reader = PyPDF2.PdfReader(pdf_path)
     num = len(pdf_reader.pages)
     return num
@@ -707,4 +730,3 @@ def print_tree(tree, indent=0):
 def print_wrapped(text, width=100):
     for line in text.splitlines():
         print(textwrap.fill(line, width=width))
-

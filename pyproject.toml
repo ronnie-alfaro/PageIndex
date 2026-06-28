@@ -28,3 +28,6 @@ pageindex = "pageindex.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["pageindex*"]
+
+[tool.setuptools.package-data]
+pageindex = ["config.yaml"]

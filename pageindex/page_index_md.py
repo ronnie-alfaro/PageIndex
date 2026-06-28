@@ -3,9 +3,29 @@ import json
 import re
 import os
 try:
-    from .utils import *
+    from .utils import (
+        count_tokens,
+        create_clean_structure_for_description,
+        format_structure,
+        generate_doc_description,
+        generate_node_summary,
+        print_json,
+        print_toc,
+        structure_to_list,
+        write_node_id,
+    )
 except:
-    from utils import *
+    from utils import (
+        count_tokens,
+        create_clean_structure_for_description,
+        format_structure,
+        generate_doc_description,
+        generate_node_summary,
+        print_json,
+        print_toc,
+        structure_to_list,
+        write_node_id,
+    )
 
 async def get_node_summary(node, summary_token_threshold=200, model=None):
     node_text = node.get('text')
@@ -240,9 +260,18 @@ def clean_tree_for_output(tree_nodes):
     return cleaned_nodes
 
 
-async def md_to_tree(md_path, if_thinning=False, min_token_threshold=None, if_add_node_summary='no', summary_token_threshold=None, model=None, if_add_doc_description='no', if_add_node_text='no', if_add_node_id='yes'):
-    with open(md_path, 'r', encoding='utf-8') as f:
-        markdown_content = f.read()
+async def markdown_to_tree(
+    markdown_content,
+    doc_name,
+    if_thinning=False,
+    min_token_threshold=None,
+    if_add_node_summary='no',
+    summary_token_threshold=None,
+    model=None,
+    if_add_doc_description='no',
+    if_add_node_text='no',
+    if_add_node_id='yes',
+):
     line_count = markdown_content.count('\n') + 1
 
     print(f"Extracting nodes from markdown...")
@@ -281,7 +310,7 @@ async def md_to_tree(md_path, if_thinning=False, min_token_threshold=None, if_ad
             clean_structure = create_clean_structure_for_description(tree_structure)
             doc_description = generate_doc_description(clean_structure, model=model)
             return {
-                'doc_name': os.path.splitext(os.path.basename(md_path))[0],
+                'doc_name': doc_name,
                 'doc_description': doc_description,
                 'line_count': line_count,
                 'structure': tree_structure,
@@ -294,10 +323,27 @@ async def md_to_tree(md_path, if_thinning=False, min_token_threshold=None, if_ad
             tree_structure = format_structure(tree_structure, order = ['title', 'node_id', 'line_num', 'summary', 'prefix_summary', 'nodes'])
     
     return {
-        'doc_name': os.path.splitext(os.path.basename(md_path))[0],
+        'doc_name': doc_name,
         'line_count': line_count,
         'structure': tree_structure,
     }
+
+
+async def md_to_tree(md_path, if_thinning=False, min_token_threshold=None, if_add_node_summary='no', summary_token_threshold=None, model=None, if_add_doc_description='no', if_add_node_text='no', if_add_node_id='yes'):
+    with open(md_path, 'r', encoding='utf-8') as f:
+        markdown_content = f.read()
+    return await markdown_to_tree(
+        markdown_content=markdown_content,
+        doc_name=os.path.splitext(os.path.basename(md_path))[0],
+        if_thinning=if_thinning,
+        min_token_threshold=min_token_threshold,
+        if_add_node_summary=if_add_node_summary,
+        summary_token_threshold=summary_token_threshold,
+        model=model,
+        if_add_doc_description=if_add_doc_description,
+        if_add_node_text=if_add_node_text,
+        if_add_node_id=if_add_node_id,
+    )
 
 
 if __name__ == "__main__":
