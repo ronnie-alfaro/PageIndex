@@ -1,10 +1,28 @@
 import os
+import re
+import unicodedata
 import zlib
 
 import msgpack
 
 PIR_MAGIC = "PIR1"
 PIR_HEADER = b"PIR1Z"
+STOPWORDS = {
+    "about", "como", "con", "cual", "cuando", "de", "del", "dice", "el", "en",
+    "es", "esta", "este", "la", "las", "lo", "los", "por", "que", "sobre",
+    "the", "what", "where", "who",
+}
+
+
+def _normalize(text):
+    text = unicodedata.normalize("NFKD", text or "")
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return text.lower()
+
+
+def _query_terms(query):
+    terms = re.findall(r"[a-zA-ZÀ-ÿ0-9_]{3,}", _normalize(query))
+    return [term for term in terms if term not in STOPWORDS]
 
 
 def _walk_nodes(nodes, parent_index=None, depth=0, flat=None):
@@ -163,6 +181,28 @@ def get_subtree_text(compiled, node_id, max_chars=24000):
         total += len(chunk)
 
     return "\n\n".join(parts)
+
+
+def search_nodes(compiled, query, limit=5):
+    terms = _query_terms(query)
+    if not terms:
+        return []
+
+    scored = []
+    for node in compiled["nodes"]:
+        title = _normalize(node.get("title", ""))
+        text = _normalize(get_text(compiled, node["node_id"]))
+        score = 0
+        for term in terms:
+            if term in title:
+                score += 10
+            if term in text:
+                score += min(5, text.count(term))
+        if score:
+            scored.append((score, node["depth"], node["index"], node["node_id"]))
+
+    scored.sort(key=lambda item: (-item[0], item[1], item[2]))
+    return [node_id for _, _, _, node_id in scored[:limit]]
 
 
 def render_compact_tree(compiled, max_depth=2):

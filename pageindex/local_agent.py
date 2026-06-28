@@ -7,7 +7,7 @@ import uuid
 from .epub import epub_to_tree
 from .page_index_md import md_to_tree
 from .proxy_llm import llm_completion
-from .pir import get_subtree_text, read_pir, render_compact_tree
+from .pir import get_subtree_text, read_pir, render_compact_tree, search_nodes
 from .retrieve import get_document, get_document_structure, get_page_content
 
 
@@ -205,12 +205,13 @@ def ask_pir(pir_path, question, model=None, verbose=False):
     compiled = read_pir(pir_path)
     metadata = json.dumps(compiled.get("document", {}), ensure_ascii=False)
     tree = render_compact_tree(compiled, max_depth=2)
+    lexical_node_ids = search_nodes(compiled, question, limit=4)
 
     selection_raw = llm_completion(
         model,
         PIR_SELECT_PROMPT.format(metadata=metadata, tree=tree, question=question),
     )
-    if not selection_raw:
+    if not selection_raw and not lexical_node_ids:
         raise RuntimeError(
             "Local LLM did not return a response. Start llama.cpp server at "
             "http://127.0.0.1:8080/v1 or pass --model ollama/<model> / --model litellm/<model>."
@@ -220,6 +221,7 @@ def ask_pir(pir_path, question, model=None, verbose=False):
     node_ids = selection.get("node_ids") or selection.get("nodes") or []
     if isinstance(node_ids, str):
         node_ids = [part.strip() for part in node_ids.split(",") if part.strip()]
+    node_ids = list(dict.fromkeys([*node_ids, *lexical_node_ids]))
     if not node_ids and compiled.get("nodes"):
         node_ids = [compiled["nodes"][0]["node_id"]]
 
@@ -228,9 +230,13 @@ def ask_pir(pir_path, question, model=None, verbose=False):
         text = get_subtree_text(compiled, node_id)
         if text:
             excerpts.append(text)
+    if not excerpts:
+        raise RuntimeError("PIR retrieval did not find text for the selected nodes.")
 
     if verbose:
         print(f"[agent] selected node_ids: {', '.join(node_ids)}")
+        if lexical_node_ids:
+            print(f"[agent] lexical node_ids: {', '.join(lexical_node_ids)}")
 
     answer = llm_completion(
         model,
