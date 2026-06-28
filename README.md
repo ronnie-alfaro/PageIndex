@@ -211,6 +211,26 @@ uv run --no-editable pageindex --epub_path /path/to/your/book.epub
 Markdown and EPUB ingestion use lazy imports, so PDF parsing libraries are only loaded when the PDF path is used.
 </details>
 
+<details>
+<summary>PIR compiled output</summary>
+<br>
+You can write a compact binary PageIndex Runtime file with the `.pir` extension while keeping JSON available.
+
+```bash
+uv run --no-editable pageindex --epub_path /path/to/your/book.epub --output-format both
+```
+
+Available output formats:
+
+```bash
+--output-format json
+--output-format pir
+--output-format both
+```
+
+PIR stores a compiled tree, lookup indexes, and node text in a compressed MessagePack payload for faster local traversal.
+</details>
+
 ### Local agentic QA
 
 You can ask questions with the local-first agent. By default it uses llama.cpp at `127.0.0.1:8080`.

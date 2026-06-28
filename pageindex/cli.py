@@ -29,6 +29,12 @@ def _build_parser():
     parser.add_argument("--pdf_path", type=str, help="Path to the PDF file")
     parser.add_argument("--md_path", type=str, help="Path to the Markdown file")
     parser.add_argument("--epub_path", type=str, help="Path to the EPUB file")
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "pir", "both"],
+        default="json",
+        help="Output format to write (default: json)",
+    )
 
     parser.add_argument("--model", type=str, default=None, help="Model to use (overrides config.yaml)")
 
@@ -90,16 +96,23 @@ def _validate_args(args):
     _selected_path(args)
 
 
-def _write_result(result, source_path):
+def _write_result(result, source_path, output_format="json"):
     name = os.path.splitext(os.path.basename(source_path))[0]
     output_dir = "./results"
-    output_file = f"{output_dir}/{name}_structure.json"
     os.makedirs(output_dir, exist_ok=True)
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
+    if output_format in {"json", "both"}:
+        output_file = f"{output_dir}/{name}_structure.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        print(f"Tree structure saved to: {output_file}")
 
-    print(f"Tree structure saved to: {output_file}")
+    if output_format in {"pir", "both"}:
+        from pageindex.pir import write_pir
+
+        output_file = f"{output_dir}/{name}.pir"
+        write_pir(result, output_file)
+        print(f"Compiled PIR saved to: {output_file}")
 
 
 def _process_pdf(args):
@@ -124,7 +137,7 @@ def _process_pdf(args):
 
     result = page_index_main(args.pdf_path, opt)
     print("Parsing done, saving to file...")
-    _write_result(result, args.pdf_path)
+    _write_result(result, args.pdf_path, args.output_format)
 
 
 def _process_markdown(args):
@@ -159,7 +172,7 @@ def _process_markdown(args):
     )
 
     print("Parsing done, saving to file...")
-    _write_result(result, args.md_path)
+    _write_result(result, args.md_path, args.output_format)
 
 
 def _process_epub(args):
@@ -196,7 +209,7 @@ def _process_epub(args):
     )
 
     print("Parsing done, saving to file...")
-    _write_result(result, args.epub_path)
+    _write_result(result, args.epub_path, args.output_format)
 
 
 def main(argv=None):
